@@ -5,6 +5,7 @@ class Computer extends EventEmitter {
     constructor() {
         super();
 
+        this.entry = null;
         this.tail = null;
         this.PC = null;
 
@@ -51,6 +52,7 @@ class Computer extends EventEmitter {
                 this.tail.next = newInstr;
             } else {
                 this.PC = newInstr;
+                this.entry = newInstr;
             }
             this.tail = newInstr;
             return true;
@@ -62,28 +64,108 @@ class Computer extends EventEmitter {
         while(this.PC !== null) {
             const curPC = this.PC;
             this.emit('onPreStep', curPC, this);
-            curPC.op.call(this, curPC.val);
-            this.emit('onPostStep', curPC, this);
+            if (this.PC !== null) {
+                curPC.op.call(this, curPC.val);
+                this.emit('onPostStep', curPC, this);
+            }
         }
+        this.emit('done', this.accumulator, this);
+    }
+
+    forEach(cb) {
+        let c = this.entry;
+        let idx = 0;
+        while(c !== null) {
+            cb(c, idx++);
+            c = c.next;
+        }
+    }
+
+    map(cb) {
+        const arr = [];
+        this.forEach((instr, idx) => {
+            arr.push(cb(instr, idx));
+        });
+        return arr;
+    }
+
+    get(index) {
+        let c = this.entry;
+        let idx = 0;
+        while(c !== null && idx < index) {
+            c = c.next;
+            idx++;
+        }
+        return c;
     }
 }
 
 async function Run() {
     const input = await Advent.GetInput();
 
+    // helper function to detect loops, returns true if we looped
+    const detectLoop = async (PC) => {
+        let looped = false;
+        PC.on('onPreStep', (instr) => {
+            if (instr.visited) {
+                looped = true;
+                PC.PC = null;
+            }
+        });
+        PC.on('onPostStep', (instr) => {
+            instr.visited = true;
+        });
+        await PC.run();
+        return looped;
+    };
+
     const PC = new Computer();
     input.forEach((i) => PC.addInstruction(i));
 
     // after each step, overwrite the function so we can detect when we hit a loop
-    PC.on('onPostStep', (instr) => {
-        instr.op = () => {
-            PC.PC = null;
-        };
-    });
-
-    await PC.run();
+    await detectLoop(PC);
     await Advent.Submit(PC.accumulator);
-    
-    // await Advent.Submit(null, 2);
+
+    // get list of all jmp and nop instructions
+    const findCmds = (cmd) => {
+        return PC.map((instr, idx) => {
+            if (instr.opStr !== cmd) return undefined;
+            return idx;
+        }).filter((x) => !!x)
+    }
+    const jmps = findCmds('jmp').map((idx) => {
+        return {idx, replace: 'nop'};
+    });
+    const nops = findCmds('nop').map((idx) => {
+        return {idx, replace: 'jmp'};
+    });
+    const replacements = [
+        ...jmps, ...nops,
+    ];
+
+    const runPCWithReplacement = async (replacement) => {
+        // setup new PC
+        const PC = new Computer();
+        input.forEach((i) => PC.addInstruction(i));
+
+        // make single op replacement
+        const rOp = PC.get(replacement.idx);
+        if (!rOp) return;
+        rOp.op = PC[`op_${replacement.replace}`];
+
+        const looped = await detectLoop(PC);
+        if (looped) return undefined;
+        return PC.accumulator;
+    };
+
+    // try each replacement option until we exit properly
+    for(let i=0; i<replacements.length; i++) {
+        const res = await runPCWithReplacement(replacements[i]);
+        if (res !== undefined) {
+            // found a non-looping program!
+            await Advent.Submit(res, 2);
+            break;
+        }
+    }
 }
 Run();
