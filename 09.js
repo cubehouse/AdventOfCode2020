@@ -39,6 +39,22 @@ async function Run() {
 
     const invalidNum = findInvalidEntry(input, 25);
     await Advent.Submit(invalidNum);
-    // await Advent.Submit(null, 2);
+
+    const findSummer = (arr, target) => {
+        for(let idx=0; idx<arr.length; idx++) {
+            let sum = arr[idx];
+            let end = idx+1;
+            for(; end<arr.length && sum < target; end++) {
+                sum += arr[end];
+            }
+            if (sum === target) {
+                return arr.slice(idx, end);
+            }
+        }
+        return undefined;
+    };
+    const components = findSummer(input, invalidNum);
+
+    await Advent.Submit(Math.min(...components) + Math.max(...components), 2);
 }
 Run();
