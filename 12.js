@@ -42,20 +42,41 @@ class Turtle {
     }
 };
 
+class Turtle2 extends Turtle {
+    constructor() {
+        super();
+        this.waypoint = [10, -1];
+    }
+    Move_N(val) {
+        this.waypoint[1] -= val;
+    }
+    Move_S(val) {
+        this.waypoint[1] += val;
+    }
+    Move_E(val) {
+        this.waypoint[0] += val;
+    }
+    Move_W(val) {
+        this.waypoint[0] -= val;
+    }
+    Move_F(val) {
+        const dX = this.waypoint[0] * val;
+        const dY = this.waypoint[1] * val;
+        this.pos[0] += dX;
+        this.pos[1] += dY;
+    }
+    Turn(turns) {
+        if (turns < 0) {
+            turns = (turns % 4) + 4;
+        }
+        for(let i=0; i<turns; i++) {
+            [this.waypoint[0], this.waypoint[1]] = [-this.waypoint[1], this.waypoint[0]];
+        }
+    }
+}
+
 async function Run() {
     const input = await Advent.GetInput();
-    const input2 = `F10
-N3
-F7
-R90
-F11
-L90
-L180
-R270
-R90
-R180
-L90
-F1`.split(/\n/g);
 
     const map = new Turtle();
     input.forEach((i) => {
@@ -63,6 +84,10 @@ F1`.split(/\n/g);
     });
     await Advent.Submit(map.Distance());
 
-    // await Advent.Submit(null, 2);
+    const map2 = new Turtle2();
+    input.forEach((i) => {
+        map2.Move(i);
+    });
+    await Advent.Submit(map2.Distance(), 2);
 }
 Run();
